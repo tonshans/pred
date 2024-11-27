@@ -9,7 +9,6 @@ import numpy as np
 from binance.client import Client
 import pandas_ta as ta
 import joblib
-#import matplotlib.pyplot as plt
 from cmd import Cmd 
 import re
 import requests

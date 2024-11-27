@@ -1,4 +1,4 @@
-from Soothsayer import predict, pred_plotfile
+from pred import predict, pred_plotfile
 from datetime import datetime
 import os
 

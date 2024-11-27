@@ -4,7 +4,7 @@ import re
 import pandas as pd
 from cmd import Cmd 
 
-from soothsayer-novol import generate_indi, predict_this
+from pred_novol import generate_indi, predict_this
 
 
 def get_klines(pair,timeframe='1d',candle_to_fetch=61):
