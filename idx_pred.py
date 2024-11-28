@@ -4,8 +4,8 @@ import re
 import pandas as pd
 from cmd import Cmd 
 
-from pred_novol import generate_indi, predict_this
-
+from pred import Pred
+pred = Pred()
 
 def get_klines(pair,timeframe='1d',candle_to_fetch=61):
     idx_endpoint = "https://indodax.com/"
@@ -51,13 +51,13 @@ def get_klines(pair,timeframe='1d',candle_to_fetch=61):
 def predict(pair,timeframe='1d'):
     '''
     cuma wrapper biar enak manggilnya
-    predict_this(generate_indi(get_klines(pair).iloc[[-1]]))
+    pred.predict_this(pred.generate_indi(get_klines(pair).iloc[[-1]]))
     '''
     klines = get_klines(pair,timeframe=timeframe)
     if klines is None:
         return None
-    indi = generate_indi(klines).iloc[[-1]]
-    return [indi['TYP_MOV'].values[0]] + predict_this(indi)
+    indi = pred.generate_indi(klines).iloc[[-1]]
+    return [indi['TYP_MOV'].values[0]] + pred.predict_this(indi)
 
 def print_predict(pair,timeframe='1d',default_pair='USDT'):
     pred = predict(pair,timeframe=timeframe)
@@ -76,7 +76,6 @@ def print_predict(pair,timeframe='1d',default_pair='USDT'):
             pred_str += '\033[1;31;40m (' + str(c)+')'
         c +=1
     print(pred_str + '\033[0m')
-
 
 def print_predict_tf_overlap(pair, tfs=['1d', '4h', '30m']):
     time_now = datetime.now().strftime("%d-%m %H:%M")
@@ -103,6 +102,7 @@ def print_predict_tf_overlap(pair, tfs=['1d', '4h', '30m']):
 class predCmd(Cmd):
     timeframe = '1d' ##default timeframe
     default_pair = 'IDR'
+    model = 'default'
     prompt = "\nIDX:" + timeframe+ ':' + default_pair +":> "
 
 
@@ -121,7 +121,7 @@ class predCmd(Cmd):
     def do_pr(self, args):
         'preset list, monitor tel aja dulu disini'
         preset_pair = 'TEL'
-        print_predict_tf_overlap(preset_pair)
+        print_predict_tf_overlap(preset_pair+self.default_pair)
 
     def do_tf(self, args):
         'timeframe [ 1w 3d 1d 12h 8h 6h 4h 2h 1h 30m 15m 5m ]\ntf 4h\n'
@@ -135,6 +135,14 @@ class predCmd(Cmd):
         'set default pair. \nex: dpair USDT'
         self.default_pair = args.upper()
         self.prompt = "\nIDX:" + self.timeframe+ ':' + self.default_pair +":> "
+
+    def do_model(self, args):
+        'set model type'
+        if len(args) == 0:
+            print(self.model)
+        else:
+            pred.set_model_type(args)
+            self.model = args
 
     def do_exit(self, args):
         'Keluar'
