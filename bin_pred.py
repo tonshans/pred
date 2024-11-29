@@ -1,4 +1,3 @@
-import sys
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -6,11 +5,10 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 from datetime import datetime, timedelta
 import pandas as pd
 from binance.client import Client
-from cmd import Cmd 
 import re
 import requests
 
-from pred import Pred
+from pred import Pred, PredCmd
 pred = Pred()
 
 
@@ -179,29 +177,11 @@ def print_predict_tf_overlap(pair, tfs=['1d', '4h', '30m']):
         print(pred_str + '\033[0m')
 
 #######################################
-class predCmd(Cmd):
-    timeframe = '1d' ##default timeframe
-    default_pair = 'USDT'
-    prompt = "\n" + timeframe+ ':' + default_pair +":> "
+class binCmd(PredCmd):
+    def __init__(self) -> None:
+        super(binCmd, self).__init__()
+        self.pred_main_class = pred
 
-    def do_p(self, args):
-        'p maksudnya predict, \nargument bisa di isi banyak pair pakai space separator ya'
-        arg_split = args.split(' ')
-        for arg in arg_split:
-            print_predict(arg.upper() + self.default_pair, timeframe=self.timeframe, default_pair=self.default_pair)
-
-    def do_ptf(self, args):
-        'Predict timeframe overlap, nge-predict 1 pair dalam preset timeframe\nptf [.. pair ..]'
-        arg_split = args.split(' ')
-        for arg in arg_split:
-            print_predict_tf_overlap(arg.upper() + self.default_pair)
-
-    def do_pr(self, args):
-        'preset list'
-        preset_pairs = ['BTC', 'FET', 'FTM', 'HBAR', 'ZIL', 'LIT']
-        for pair in preset_pairs:
-            print_predict(pair + self.default_pair, self.timeframe)
-    
     def do_tel(self, args):
         'cek status tel di idx'
         tfs=['1d', '4h', '30m']
@@ -210,15 +190,15 @@ class predCmd(Cmd):
         time_now = datetime.now().strftime("%d-%m %H:%M")
         print('  _IDX_' + pair + '_' + time_now + ':')
         for tf in tfs:
-            pred = idx_predict(pair,timeframe=tf)
-            if pred is None:
+            pred_result = idx_predict(pair,timeframe=tf)
+            if pred_result is None:
                 return None
             if len(tf)<3:
                 pred_str = '  ' + tf + ' :-> '
             else:
                 pred_str = '  ' + tf + ':-> '
             c = 0
-            for p in pred:
+            for p in pred_result:
                 if p == 1:
                     pred_str += '\033[1;32;40m [' + str(c)+']'
                 else:
@@ -227,27 +207,33 @@ class predCmd(Cmd):
             print(pred_str + '\033[0m')
             #sleep(2) ##biar gak error2 dia waktu query api nya
 
-    def do_tf(self, args):
-        'timeframe [ 1w 3d 1d 12h 8h 6h 4h 2h 1h 30m 15m 5m ]\ntf 4h\n'
-        if len(args) == 0:
-            print(self.timeframe)
-        else:
-            self.timeframe = args
-            self.prompt = "\n" + self.timeframe+ ':' + self.default_pair +":> "
+    def do_pr(self, args):
+        'preset list'
+        for pair in self.preset_pairs:
+            print_predict(pair + self.default_pair, self.timeframe)
 
-    def do_dpair(self, args):
-        'set default pair. \nex: dpair USDT'
-        self.default_pair = args.upper()
-        self.prompt = "\n" + self.timeframe+ ':' + self.default_pair +":> "
+    def do_ptf(self, args):
+        'Predict timeframe overlap, nge-predict 1 pair dalam preset timeframe\nptf [.. pair ..]'
+        arg_split = args.split(' ')
+        for arg in arg_split:
+            print_predict_tf_overlap(arg.upper() + self.default_pair) 
 
-    def do_exit(self, args):
-        'Keluar'
-        return True
+    def do_p(self, args):
+        'p maksudnya predict, \nargument bisa di isi banyak pair pakai space separator ya'
+        arg_split = args.split(' ')
+        for arg in arg_split:
+            print_predict(arg.upper() + self.default_pair, timeframe=self.timeframe, default_pair=self.default_pair)
+
+    
+    
+    
+    
+    
 #######################################
 
 
 if __name__ == '__main__':
     client = Client('', '')
 
-    app = predCmd()
+    app = binCmd()
     app.cmdloop('Enter a command to predict trend movement \n[p/ptf/pr/tf/tel/help]:')

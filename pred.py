@@ -9,10 +9,11 @@ import numpy as np
 import pandas_ta as ta
 import joblib
 import matplotlib.pyplot as plt
-from time import sleep
+from cmd import Cmd 
 
 class Pred():
     model = 'default'
+    available_model = ['default','novol']
     jl_model1 = None
     jl_model2 = None
     jl_model3 = None
@@ -27,7 +28,8 @@ class Pred():
         self.load_model()
 
     def set_model_type(self, model):
-        self.model = model
+        if model in self.available_model:
+            self.model = model
 
     def load_model(self):
         if self.model == 'default':
@@ -70,6 +72,7 @@ class Pred():
                 bv['VOL_MACD'] = _vol_macd['MACD_12_26_9']
                 bv['VOL_MACDH'] = _vol_macd['MACDh_12_26_9']
                 bv['VOL_MACDS'] = _vol_macd['MACDs_12_26_9']
+            
 
             bv['TYP'] = (bv['High']+bv['Low']+bv['Close'])/3
             bv['TYP_MA8'] = ta.sma(bv['TYP'], length=8)
@@ -172,8 +175,12 @@ class Pred():
             bv['HA_MOV_RSI_SD'] = _ha_mov_rsi_stoch['STOCHRSId_14_14_3_3']
 
             #return bv[np.isfinite(bv).all(1)] #exclude yang mengandung infinate value
-            return bv
+            if self.model == 'default':
+                return bv
+            else:    
+                return bv.drop(columns=['Volume'])
         except Exception as e:
+            print('Error di generate_indi')
             print(e)
             return None
 
@@ -209,3 +216,57 @@ class Pred():
         return plot_filename
 
 
+class PredCmd(Cmd):
+    caller_id = ''
+    pred_main_class = None ## ini musti di set setiap inheritance
+    timeframe = '1d' ##default timeframe
+    default_pair = 'USDT'
+    model = 'default'
+    prompt = "\n" + caller_id + ':' + timeframe+ ':' + default_pair +":> "
+    preset_pairs = ['BTC', 'FET', 'FTM', 'HBAR', 'ZIL', 'LIT']
+    
+
+    def __init__(self) -> None:
+        super(PredCmd, self).__init__()
+
+    def do_tf(self, args):
+        'timeframe [ 1w 3d 1d 12h 8h 6h 4h 2h 1h 30m 15m 5m ]\ntf 4h\n'
+        if len(args) == 0:
+            print(self.timeframe)
+        else:
+            self.timeframe = args
+            self.prompt = "\n" + self.caller_id + ':'  + self.timeframe+ ':' + self.default_pair +":> "
+
+    def do_setpr(self, args):
+        'set preset pair list'
+        if len(args) == 0:
+            print(self.preset_pairs)
+        else:
+            self.preset_pairs = []
+            for pr in args:
+                self.preset_pairs.append(pr)
+
+    def do_dpair(self, args):
+        'set default pair. \nex: dpair USDT'
+        self.default_pair = args.upper()
+        self.prompt = "\n" + self.caller_id + ':'  + self.timeframe+ ':' + self.default_pair +":> "
+
+    def do_model(self, args):
+        'set model type'
+        if len(args) == 0:
+            print(self.model)
+        else:
+            if args in self.pred_main_class.available_model:
+                self.pred_main_class.set_model_type(args)
+                self.model = args
+                self.pred_main_class.model = self.model
+                self.pred_main_class.load_model()
+            else:
+                print('Available model : ')
+                print(self.pred_main_class.available_model)
+
+    
+
+    def do_exit(self, args):
+        'Keluar'
+        return True

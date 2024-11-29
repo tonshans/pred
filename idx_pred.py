@@ -2,9 +2,8 @@ import requests
 from datetime import datetime,timedelta
 import re
 import pandas as pd
-from cmd import Cmd 
 
-from pred import Pred
+from pred import Pred, PredCmd
 pred = Pred()
 
 def get_klines(pair,timeframe='1d',candle_to_fetch=61):
@@ -99,12 +98,12 @@ def print_predict_tf_overlap(pair, tfs=['1d', '4h', '30m']):
 
 
 #######################################
-class predCmd(Cmd):
-    timeframe = '1d' ##default timeframe
-    default_pair = 'IDR'
-    model = 'default'
-    prompt = "\nIDX:" + timeframe+ ':' + default_pair +":> "
-
+class idxCmd(PredCmd):
+    def __init__(self) -> None:
+        super(idxCmd, self).__init__()
+        self.pred_main_class = pred
+        self.caller_id = 'idx'
+        self.default_pair = 'IDR'
 
     def do_p(self, args):
         'p maksudnya predict, \nargument bisa di isi banyak pair pakai space separator ya'
@@ -123,31 +122,7 @@ class predCmd(Cmd):
         preset_pair = 'TEL'
         print_predict_tf_overlap(preset_pair+self.default_pair)
 
-    def do_tf(self, args):
-        'timeframe [ 1w 3d 1d 12h 8h 6h 4h 2h 1h 30m 15m 5m ]\ntf 4h\n'
-        if len(args) == 0:
-            print(self.timeframe)
-        else:
-            self.timeframe = args
-            self.prompt = "\nIDX:" + self.timeframe+ ':' + self.default_pair +":> "
-
-    def do_dpair(self, args):
-        'set default pair. \nex: dpair USDT'
-        self.default_pair = args.upper()
-        self.prompt = "\nIDX:" + self.timeframe+ ':' + self.default_pair +":> "
-
-    def do_model(self, args):
-        'set model type'
-        if len(args) == 0:
-            print(self.model)
-        else:
-            pred.set_model_type(args)
-            self.model = args
-
-    def do_exit(self, args):
-        'Keluar'
-        return True
 #######################################
 if __name__ == '__main__':
-    app = predCmd()
+    app = idxCmd()
     app.cmdloop('IDX Pred\nEnter a command to predict trend movement \n[p/ptf/pr/tf/help]:')
