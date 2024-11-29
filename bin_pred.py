@@ -119,6 +119,7 @@ def get_idx_klines(pair,timeframe='1d',candle_to_fetch=61):
         return pd.DataFrame.from_dict(klines)
     except:
         return None
+
 def idx_predict(pair,timeframe='1d'):
     klines = get_idx_klines(pair,timeframe=timeframe)
     if klines is None:
@@ -131,12 +132,16 @@ def predict(pair,timeframe='1d'):
     cuma wrapper biar enak manggilnya
     pred.predict_this(pred.generate_indi(get_klines(pair).iloc[[-1]]))
     '''
-    klines = get_klines(pair,timeframe=timeframe)
-    if klines is None:
+    try:
+        klines = get_klines(pair,timeframe=timeframe)
+        if klines is None:
+            return None
+        indi = pred.generate_indi(klines).iloc[[-1]]
+        #return [indi['MOV'].values[0]] + pred.predict_this(pred.generate_indi(klines).iloc[[-1]])
+        return [indi['TYP_MOV'].values[0]] + pred.predict_this(indi)
+    except:
+        print('Predict say SORRY...')
         return None
-    indi = pred.generate_indi(klines).iloc[[-1]]
-    #return [indi['MOV'].values[0]] + pred.predict_this(pred.generate_indi(klines).iloc[[-1]])
-    return [indi['TYP_MOV'].values[0]] + pred.predict_this(indi)
 
 def print_predict(pair,timeframe='1d',default_pair='USDT'):
     pred = predict(pair,timeframe=timeframe)
@@ -179,11 +184,14 @@ def print_predict_tf_overlap(pair, tfs=['1d', '4h', '30m']):
 #######################################
 class binCmd(PredCmd):
     def __init__(self) -> None:
-        super(binCmd, self).__init__()
         self.pred_main_class = pred
+        super().__init__()
 
     def do_tel(self, args):
-        'cek status tel di idx'
+        '''
+        Special Case
+        untuk cek status tel di idx, supaya gak pindah2 mode exchange cuma buat cek tel aja
+        '''
         tfs=['1d', '4h', '30m']
         pair = 'TELIDR'
 
@@ -207,33 +215,63 @@ class binCmd(PredCmd):
             print(pred_str + '\033[0m')
             #sleep(2) ##biar gak error2 dia waktu query api nya
 
-    def do_pr(self, args):
-        'preset list'
-        for pair in self.preset_pairs:
-            print_predict(pair + self.default_pair, self.timeframe)
-
-    def do_ptf(self, args):
-        'Predict timeframe overlap, nge-predict 1 pair dalam preset timeframe\nptf [.. pair ..]'
-        arg_split = args.split(' ')
-        for arg in arg_split:
-            print_predict_tf_overlap(arg.upper() + self.default_pair) 
-
     def do_p(self, args):
-        'p maksudnya predict, \nargument bisa di isi banyak pair pakai space separator ya'
+        '''
+        Predict\n
+        argument bisa di isi banyak pair pakai space separator ya
+        '''
         arg_split = args.split(' ')
         for arg in arg_split:
             print_predict(arg.upper() + self.default_pair, timeframe=self.timeframe, default_pair=self.default_pair)
 
-    
-    
-    
-    
-    
+    def do_pl(self, args):
+        '''
+        Predict List\n
+        Predict Pair dalam List preset\n
+        list bisa di ubah dengan command setpr
+        '''
+        for pair in self.preset_pairs:
+            print_predict(pair + self.default_pair, self.timeframe)
+
+        ## special case, ###############################################
+        pair = 'TELIDR'
+        pred_result = idx_predict(pair,timeframe=self.timeframe)
+        time_now = datetime.now().strftime("%d-%m %H:%M")
+        if pred_result is not None:
+            time_now = datetime.now().strftime("%d-%m %H:%M")
+            pred_str = '  ' +  pair + '--' + time_now + '-> '
+            
+            c = 0
+            for p in pred_result:
+                if p == 1:
+                    pred_str += '\033[1;32;40m [' + str(c)+']'
+                else:
+                    pred_str += '\033[1;31;40m (' + str(c)+')'
+                c +=1
+            print(pred_str + '\033[0m')
+
+    def do_ptf(self, args):
+        '''
+        Predict TimeFrame
+        Predict multi timeframe overlap, nge-predict 1 pair dalam preset timeframe\n
+        ptf [.. pair ..]
+        '''
+        arg_split = args.split(' ')
+        for arg in arg_split:
+            print_predict_tf_overlap(arg.upper() + self.default_pair) 
+
+    def do_ptfl(self):
+        '''
+        Predict TimeFrame List
+        Predict multi timeframe overlap, nge-predict 1 pair dalam preset timeframe\n
+        menggunakan PAIR dari list preset_pair 
+        '''
+        for pair in self.preset_pairs:
+            print_predict_tf_overlap(pair.upper() + self.default_pair) 
+
 #######################################
-
-
 if __name__ == '__main__':
     client = Client('', '')
 
     app = binCmd()
-    app.cmdloop('Enter a command to predict trend movement \n[p/ptf/pr/tf/tel/help]:')
+    app.cmdloop('Enter a command to predict trend movement \n[p/pl/ptf/ptfl/tf/tel/help]:')

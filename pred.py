@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import pandas_ta as ta
 import joblib
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from cmd import Cmd 
 
 class Pred():
@@ -222,34 +222,38 @@ class PredCmd(Cmd):
     timeframe = '1d' ##default timeframe
     default_pair = 'USDT'
     model = 'default'
-    prompt = "\n" + caller_id + ':' + timeframe+ ':' + default_pair +":> "
-    preset_pairs = ['BTC', 'FET', 'FTM', 'HBAR', 'ZIL', 'LIT']
+    prompt = ""
+    preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'LIT']
     
 
     def __init__(self) -> None:
-        super(PredCmd, self).__init__()
+        self.prompt = "\n" + self.caller_id + ':' + self.timeframe+ ':' + self.default_pair +":> "
+        super().__init__()
 
-    def do_tf(self, args):
-        'timeframe [ 1w 3d 1d 12h 8h 6h 4h 2h 1h 30m 15m 5m ]\ntf 4h\n'
+    def do_settf(self, args):
+        'set timeframe [ 1w 3d 1d 12h 8h 6h 4h 2h 1h 30m 15m 5m ]\ntf 4h\n'
         if len(args) == 0:
             print(self.timeframe)
         else:
             self.timeframe = args
             self.prompt = "\n" + self.caller_id + ':'  + self.timeframe+ ':' + self.default_pair +":> "
 
-    def do_setpr(self, args):
+    def do_setpl(self, args):
         'set preset pair list'
         if len(args) == 0:
             print(self.preset_pairs)
         else:
             self.preset_pairs = []
-            for pr in args:
-                self.preset_pairs.append(pr)
+            for pr in args.split(' '):
+                self.preset_pairs.append(pr.upper())
 
-    def do_dpair(self, args):
-        'set default pair. \nex: dpair USDT'
-        self.default_pair = args.upper()
-        self.prompt = "\n" + self.caller_id + ':'  + self.timeframe+ ':' + self.default_pair +":> "
+    def do_setdp(self, args):
+        'set default pair. \nex: setdp USDT'
+        if len(args) == 0:
+            print(self.default_pair)
+        else:
+            self.default_pair = args.upper()
+            self.prompt = "\n" + self.caller_id + ':'  + self.timeframe+ ':' + self.default_pair +":> "
 
     def do_model(self, args):
         'set model type'
