@@ -239,7 +239,7 @@ class binCmd(PredCmd):
         time_now = datetime.now().strftime("%d-%m %H:%M")
         if pred_result is not None:
             time_now = datetime.now().strftime("%d-%m %H:%M")
-            pred_str = '  ' +  pair + '--' + time_now + '-> '
+            pred_str = '  ' +  pair + '---' + time_now + '-> '
             
             c = 0
             for p in pred_result:
@@ -260,7 +260,7 @@ class binCmd(PredCmd):
         for arg in arg_split:
             print_predict_tf_overlap(arg.upper() + self.default_pair) 
 
-    def do_ptfl(self):
+    def do_ptfl(self,args):
         '''
         Predict TimeFrame List
         Predict multi timeframe overlap, nge-predict 1 pair dalam preset timeframe\n
@@ -268,6 +268,8 @@ class binCmd(PredCmd):
         '''
         for pair in self.preset_pairs:
             print_predict_tf_overlap(pair.upper() + self.default_pair) 
+        self.do_tel(None)
+
 
 #######################################
 if __name__ == '__main__':

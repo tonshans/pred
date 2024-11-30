@@ -107,7 +107,7 @@ class idxCmd(PredCmd):
         self.pred_main_class = pred
         self.caller_id = 'idx'
         self.default_pair = 'IDR'
-        self.preset_pairs = ['BTC', 'ETH', 'TEL']
+        self.preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'LIT', 'TEL']
         super().__init__()
 
     def do_p(self, args):
