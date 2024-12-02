@@ -148,7 +148,7 @@ def print_predict(pair,timeframe='1d',default_pair='USDT'):
     if pred is None:
         return None
     time_now = datetime.now().strftime("%d-%m %H:%M")
-    if len(pair.replace(default_pair,'')) < 4 :
+    if len(pair) < 8 :
         pred_str = '  ' +  pair + '--' + time_now + '-> '
     else:
         pred_str = '  ' +  pair + '-' + time_now + '-> '
