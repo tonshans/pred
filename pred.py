@@ -1,4 +1,5 @@
 import sys
+import os.path
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -10,6 +11,10 @@ import pandas_ta as ta
 import joblib
 #import matplotlib.pyplot as plt
 from cmd import Cmd 
+from tinydb import TinyDB, Query
+import tinydb_encrypted_jsonstorage as tae
+
+
 
 class Pred():
     model = 'default'
@@ -274,3 +279,41 @@ class PredCmd(Cmd):
     def do_exit(self, args):
         'Keluar'
         return True
+    
+
+class holding():
+    db = None
+    def __init__(self,dbfile=None):
+        if os.path.isfile('key'):
+            kfile = open("python.txt", "r")
+            key = kfile.read()
+            db = TinyDB('db/myholding.json')
+            kfile.close()
+        else:
+            if dbfile is None:
+                db = TinyDB('db/holding.json')
+            else:
+                db = TinyDB(dbfile)
+
+    def hold_add(self, pair, total, exchange):
+        pass
+
+    def hold_remove(self, pair, total, exchange, trans_id):
+        pass
+
+    def hold_ls(self, pair=None, exchange=None):
+        if pair is None:
+            pass
+        elif exchange is None:
+            pass
+        else: #pair & exchange is None
+            pass
+
+    def hold_value(self, pair=None, exchange=None ):
+        pass
+
+    def hold_value_history(self, ohlc=False):
+        pass
+
+    def hold_value_predict(self, hold_value_ohlc):
+        pass
