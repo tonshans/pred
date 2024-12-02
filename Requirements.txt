@@ -1,0 +1,9 @@
+matplotlib==3.9.2
+numpy==2.0.2
+pandas==2.2.3
+pandas-ta==0.3.14b0
+python-binance==1.0.22
+python-telegram-bot==21.7
+scikit-learn==1.4.2
+tinydb==4.8.2
+tinydb-encrypted-jsonstorage==0.1.2
