@@ -287,8 +287,10 @@ class holding():
         if os.path.isfile('key'):
             kfile = open("python.txt", "r")
             key = kfile.read()
-            db = TinyDB('db/myholding.json')
+            dbfile = 'db/myholding.json'
+            db = TinyDB(encryption_key=key, path=dbfile, storage=tae.EncryptedJSONStorage)
             kfile.close()
+            #db.storage.change_encryption_key("NEW_KEY"))
         else:
             if dbfile is None:
                 db = TinyDB('db/holding.json')
