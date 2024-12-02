@@ -52,15 +52,15 @@ def predict(pair,timeframe='1d'):
     cuma wrapper biar enak manggilnya
     pred.predict_this(pred.generate_indi(get_klines(pair).iloc[[-1]]))
     '''
-    #try:
-    klines = get_klines(pair,timeframe=timeframe)
-    if klines is None:
+    try:
+        klines = get_klines(pair,timeframe=timeframe)
+        if klines is None:
+            return None
+        indi = pred.generate_indi(klines).iloc[[-1]]
+        return [indi['TYP_MOV'].values[0]] + pred.predict_this(indi)
+    except:
+        print('Predict say SORRY...')
         return None
-    indi = pred.generate_indi(klines).iloc[[-1]]
-    return [indi['TYP_MOV'].values[0]] + pred.predict_this(indi)
-    #except:
-    #    print('Predict say SORRY...')
-    #    return None
 
 def print_predict(pair,timeframe='1d',default_pair='USDT'):
     pred = predict(pair,timeframe=timeframe)
