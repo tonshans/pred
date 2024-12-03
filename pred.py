@@ -1,4 +1,4 @@
-import sys
+#import sys
 import os.path
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -14,6 +14,29 @@ from cmd import Cmd
 from tinydb import TinyDB, Query
 import tinydb_encrypted_jsonstorage as tae
 
+try:
+    from binance.client import Client
+    bin_client = Client('', '')
+    connect_to_binance = True
+except:
+    connect_to_binance = False
+
+
+
+def get_single_ticker(exchange, pair):
+    if exchange == 'idx':
+        resp = requests.get("https://indodax.com/api/ticker/" + pair.upper())
+        resp.json()['ticker']
+        _responnya_begini = """
+        {'high': '115',
+        'low': '80',
+        'vol_tel': '12207711.89945255',
+        'vol_idr': '1217518468',
+        'last': '108',
+        'buy': '108',
+        'sell': '109',
+        'server_time': 1733213597}
+        """
 
 
 class Pred():
@@ -283,39 +306,72 @@ class PredCmd(Cmd):
 
 class holding():
     db = None
+    query = None
+
     def __init__(self,dbfile=None):
         if os.path.isfile('key'):
-            kfile = open("python.txt", "r")
+            kfile = open("key", "r")
             key = kfile.read()
             dbfile = 'db/myholding.json'
-            db = TinyDB(encryption_key=key, path=dbfile, storage=tae.EncryptedJSONStorage)
+            self.db = TinyDB(encryption_key=key, path=dbfile, storage=tae.EncryptedJSONStorage)
             kfile.close()
-            #db.storage.change_encryption_key("NEW_KEY"))
+            #db.storage.change_encryption_key("THE_NEW_KEY"))
         else:
             if dbfile is None:
-                db = TinyDB('db/holding.json')
+                self.db = TinyDB('db/holding.json')
             else:
-                db = TinyDB(dbfile)
+                self.db = TinyDB(dbfile)
+        self.query = Query()
 
-    def hold_add(self, pair, total, exchange):
-        pass
+    def add(self, pair, amount, exchange):
+        self.db.insert({
+        'pair': pair.upper(),
+        'amount' : amount,
+        'exchange' : exchange.upper(),
+        })
 
-    def hold_remove(self, pair, total, exchange, trans_id):
-        pass
+    def remove(self, doc_id):
+        try:
+            self.db.remove(doc_id=doc_id)
+            return True
+        except:
+            return False
 
-    def hold_ls(self, pair=None, exchange=None):
+    def ls(self, pair=None, exchange=None):
+        holding = []
         if pair is None:
-            pass
+            rec = self.db.search(self.query.pair == pair)
         elif exchange is None:
-            pass
+            rec = self.db.search(self.query.exchange == exchange)
         else: #pair & exchange is None
-            pass
+            rec =  self.db.all()
+                
+        for h in self.db.all():
+            holding.append({
+            'doc_id' : h.doc_id,
+            'pair': h['pair'],
+            'amount': h['amount'],
+            'exchange' : h['exchange']
+            })
+        return holding
 
-    def hold_value(self, pair=None, exchange=None ):
+    def value(self, pair=None, exchange=None ):
+        pairs_value = []
+        total_value = 0
+        exchange_list = []
+        ticker_list = []
+        holded = self.ls(pair=pair, exchange=exchange)
+        
+        ## ngelist exchange nya dulu
+        for h in holded:
+            if h['exchange'] not in exchange_list:
+                exchange_list.append(h['exchange'])
+                ticker_list.append({'exchange' : h['exchange'], 'ticker' : get_ticker(h['exchange'])})
+
+        return {'total': total_value, 'detail' : pairs_value}
+
+    def value_history(self, ohlc=False):
         pass
 
-    def hold_value_history(self, ohlc=False):
-        pass
-
-    def hold_value_predict(self, hold_value_ohlc):
+    def value_predict(self, hold_value_ohlc):
         pass
