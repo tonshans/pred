@@ -4,16 +4,17 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
-import numpy as np
+#import numpy as np
 import pandas_ta as ta
 import joblib
 #import matplotlib.pyplot as plt
 from cmd import Cmd 
 from tinydb import TinyDB, Query
 import tinydb_encrypted_jsonstorage as tae
-
+import re
+import requests
 try:
     from binance.client import Client
     bin_client = Client('', '')
@@ -23,20 +24,139 @@ except:
 
 
 
-def get_single_ticker(exchange, pair):
+def get_ticker(exchange):
+    'return : { __pair__ : __last_price__ }'
+    if exchange.upper() == 'IDX':
+        resp = requests.get('https://indodax.com/api/ticker_all')
+        price = {}
+        resp_json = resp.json()['tickers'] 
+        for i in resp_json:
+            if '_idr' in i:
+                c_price = resp_json[i]
+                pair_name = i.replace("_idr", "idr").upper()
+                price[pair_name] = c_price['last']
+        return price
+    elif exchange == 'bin': #binance
+        if not connect_to_binance:
+            print("Tidak bisa konek ke binance.")
+            return None
+        ## code kalo bisa konek ntar di tempat yang bisa konek ke binance
+    else:
+        return None  ## exchange lainnya belum di buat.
+
+
+def get_klines(exchange, pair,timeframe='1d',candle_to_fetch=61):
     if exchange == 'idx':
-        resp = requests.get("https://indodax.com/api/ticker/" + pair.upper())
-        resp.json()['ticker']
-        _responnya_begini = """
-        {'high': '115',
-        'low': '80',
-        'vol_tel': '12207711.89945255',
-        'vol_idr': '1217518468',
-        'last': '108',
-        'buy': '108',
-        'sell': '109',
-        'server_time': 1733213597}
-        """
+        idx_endpoint = "https://indodax.com/"
+
+        try:
+            klines = []
+            _number_tf_str = re.findall(r'\d+', timeframe)
+            if len(_number_tf_str) > 0:
+                number_tf_str = _number_tf_str[0]
+                if 'm' in timeframe:
+                    tf_in_minute = int(number_tf_str)
+                    tf_idx = number_tf_str
+                elif 'h' in timeframe:
+                    tf_in_minute = int(number_tf_str) * 60
+                    tf_idx = str(tf_in_minute)
+                elif 'd' in timeframe:
+                    tf_in_minute = int(number_tf_str) * (60*24)
+                    tf_idx = number_tf_str + 'D'
+                elif 'w' in timeframe:
+                    tf_in_minute = int(number_tf_str) * ((60*24)*7)
+                    tf_idx = number_tf_str + 'W'
+
+            time_now = datetime.now()
+            time_start = time_now - timedelta(minutes=tf_in_minute * candle_to_fetch)
+            timestamp_now = str(round(time_now.timestamp()))
+            timestamp_start = str(round(time_start.timestamp()))
+
+            ohlc_endpoint = "tradingview/history_v2?from=%s&symbol=%s&tf=%s&to=%s" %(timestamp_start,pair,tf_idx,timestamp_now)
+
+            resp = requests.get(idx_endpoint + ohlc_endpoint)
+            for k in resp.json()[:-1]:
+                klines.append({#'Time': k['Time'],
+                        'Open': float(k['Open']),
+                        'High': float(k['High']),
+                        'Low': float(k['Low']),
+                        'Close': float(k['Close']),
+                        'Volume': float(k['Volume']),
+                        })
+            return pd.DataFrame.from_dict(klines)
+        except:
+            return None
+    
+    ## Binance
+    elif exchange == 'bin': 
+        if not connect_to_binance:
+            print("Tidak bisa konek ke binance.")
+            return None
+        
+        tf = timeframe.lower()
+        if tf == '1w':
+            interfal = bin_client.KLINE_INTERVAL_1WEEK 
+            dateparser_range = str(candle_to_fetch) + " week ago UTC"
+        elif tf == '3d':
+            interfal = bin_client.KLINE_INTERVAL_3DAY  
+            dateparser_range = str(3*candle_to_fetch) + " day ago UTC"
+        elif tf == '1d':
+            interfal = bin_client.KLINE_INTERVAL_1DAY
+            dateparser_range = str(candle_to_fetch) + " day ago UTC"
+        elif tf == '12h':
+            interfal = bin_client.KLINE_INTERVAL_12HOUR 
+            dateparser_range = str(12*candle_to_fetch) + " hour ago UTC"
+        elif tf == '8h':
+            interfal = bin_client.KLINE_INTERVAL_8HOUR 
+            dateparser_range = str(8*candle_to_fetch) + " hour ago UTC"
+        elif tf == '6h':
+            interfal = bin_client.KLINE_INTERVAL_6HOUR 
+            dateparser_range = str(6*candle_to_fetch) + " hour ago UTC"
+        elif tf == '4h':
+            interfal = bin_client.KLINE_INTERVAL_4HOUR 
+            dateparser_range = str(4*candle_to_fetch) + " hour ago UTC"
+        elif tf == '2h':
+            interfal = bin_client.KLINE_INTERVAL_2HOUR 
+            dateparser_range = str(2*candle_to_fetch) + " hour ago UTC"
+        elif tf == '1h':
+            interfal = bin_client.KLINE_INTERVAL_1HOUR 
+            dateparser_range = str(candle_to_fetch) + " hour ago UTC"
+        elif tf == '30m':
+            interfal = bin_client.KLINE_INTERVAL_30MINUTE 
+            dateparser_range = str(30*candle_to_fetch) + " minute ago UTC"
+        elif tf == '15m':
+            interfal = bin_client.KLINE_INTERVAL_15MINUTE 
+            dateparser_range = str(15*candle_to_fetch) + " minute ago UTC"
+        elif tf == '5m':
+            interfal = bin_client.KLINE_INTERVAL_5MINUTE 
+            dateparser_range = str(5*candle_to_fetch) + " minute ago UTC"
+        else:
+            return None
+        
+        try:
+            bk = bin_client.get_historical_klines(pair, interfal, dateparser_range)
+
+            klines = []
+            ##  timw now dirubah mendekati utc
+            time_now = datetime.now() - timedelta(hours=7, minutes=58)
+            if len(bk) > 0 :
+                for k in bk:
+                    if time_now > datetime.fromtimestamp(k[6]/1000):
+                        klines.append({#'Open_time': k[0],
+                                    'Open': float(k[1]),
+                                    'High': float(k[2]),
+                                    'Low': float(k[3]),
+                                    'Close': float(k[4]),
+                                    'Volume': float(k[5]),
+                                    })
+            klines_df = pd.DataFrame.from_dict(klines)
+
+            ## ntar di crosscheck, apakah perlu ordering di balik, butuhnya sorting dari oldest ke newest
+            #klines_df.iloc[::-1].reset_index(drop=True)  ## gak perlu di balik sortiran nya, sudah pass oldes ke newest datanya
+            return klines_df
+        except:
+            return None
+
 
 
 class Pred():
@@ -304,9 +424,10 @@ class PredCmd(Cmd):
         return True
     
 
-class holding():
+class Holding():
     db = None
     query = None
+    usd_idr = 15942  # 1 usd to idr rate
 
     def __init__(self,dbfile=None):
         if os.path.isfile('key'):
@@ -323,10 +444,11 @@ class holding():
                 self.db = TinyDB(dbfile)
         self.query = Query()
 
-    def add(self, pair, amount, exchange):
+    def add(self, pair, amount, buy_price, exchange):
         self.db.insert({
         'pair': pair.upper(),
         'amount' : amount,
+        'buy_price' : buy_price,
         'exchange' : exchange.upper(),
         })
 
@@ -351,23 +473,33 @@ class holding():
             'doc_id' : h.doc_id,
             'pair': h['pair'],
             'amount': h['amount'],
+            'buy_price': h['buy_price'],
             'exchange' : h['exchange']
             })
         return holding
 
-    def value(self, pair=None, exchange=None ):
+    def value_now(self, pair=None, exchange=None ):
         pairs_value = []
         total_value = 0
         exchange_list = []
-        ticker_list = []
+        ticker = {}
         holded = self.ls(pair=pair, exchange=exchange)
         
-        ## ngelist exchange nya dulu
         for h in holded:
             if h['exchange'] not in exchange_list:
                 exchange_list.append(h['exchange'])
-                ticker_list.append({'exchange' : h['exchange'], 'ticker' : get_ticker(h['exchange'])})
-
+                ticker[h['exchange']] = get_ticker(h['exchange'])
+            
+            coin_value = float(h['amount']) * float(ticker[h['exchange']][h['pair']])
+            total_value += coin_value
+            pairs_value.append({'doc_id' : h['doc_id'],
+                                'pair': h['pair'],
+                                'amount' : h['amount'],
+                                'buy_price' : h['buy_price'],
+                                'exchange' : h['exchange'],
+                                'value': coin_value
+                                #,'percent_change' : ntar aja di tambah ini, masih ngantuk
+                                })
         return {'total': total_value, 'detail' : pairs_value}
 
     def value_history(self, ohlc=False):
@@ -375,3 +507,8 @@ class holding():
 
     def value_predict(self, hold_value_ohlc):
         pass
+
+
+
+if __name__ == '__main__':
+    print("Pakai PredCmd aja buat cli interface nya.")

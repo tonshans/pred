@@ -1,59 +1,11 @@
-import requests
-from datetime import datetime,timedelta
-import re
-import pandas as pd
-
-from pred import Pred, PredCmd
+from datetime import datetime
+from pred import Pred, PredCmd, get_klines, Holding
 pred = Pred()
-
-def get_klines(pair,timeframe='1d',candle_to_fetch=61):
-    idx_endpoint = "https://indodax.com/"
-
-    try:
-        klines = []
-        _number_tf_str = re.findall(r'\d+', timeframe)
-        if len(_number_tf_str) > 0:
-            number_tf_str = _number_tf_str[0]
-            if 'm' in timeframe:
-                tf_in_minute = int(number_tf_str)
-                tf_idx = number_tf_str
-            elif 'h' in timeframe:
-                tf_in_minute = int(number_tf_str) * 60
-                tf_idx = str(tf_in_minute)
-            elif 'd' in timeframe:
-                tf_in_minute = int(number_tf_str) * (60*24)
-                tf_idx = number_tf_str + 'D'
-            elif 'w' in timeframe:
-                tf_in_minute = int(number_tf_str) * ((60*24)*7)
-                tf_idx = number_tf_str + 'W'
-
-        time_now = datetime.now()
-        time_start = time_now - timedelta(minutes=tf_in_minute * candle_to_fetch)
-        timestamp_now = str(round(time_now.timestamp()))
-        timestamp_start = str(round(time_start.timestamp()))
-
-        ohlc_endpoint = "tradingview/history_v2?from=%s&symbol=%s&tf=%s&to=%s" %(timestamp_start,pair,tf_idx,timestamp_now)
-
-        resp = requests.get(idx_endpoint + ohlc_endpoint)
-        for k in resp.json()[:-1]:
-            klines.append({#'Time': k['Time'],
-                    'Open': float(k['Open']),
-                    'High': float(k['High']),
-                    'Low': float(k['Low']),
-                    'Close': float(k['Close']),
-                    'Volume': float(k['Volume']),
-                    })
-        return pd.DataFrame.from_dict(klines)
-    except:
-        return None
+hold = Holding()
     
 def predict(pair,timeframe='1d'):
-    '''
-    cuma wrapper biar enak manggilnya
-    pred.predict_this(pred.generate_indi(get_klines(pair).iloc[[-1]]))
-    '''
     try:
-        klines = get_klines(pair,timeframe=timeframe)
+        klines = get_klines('idx', pair,timeframe=timeframe)
         if klines is None:
             return None
         indi = pred.generate_indi(klines).iloc[[-1]]
@@ -100,6 +52,14 @@ def print_predict_tf_overlap(pair, tfs=['1d', '4h', '30m']):
             c +=1
         print(pred_str + '\033[0m')
 
+def print_holded_value():
+    h = hold.value_now()
+    print('Total : ' + str(h['total']))
+    for cval in h['detail']:
+        print(cval['exchange'] + ":" + cval['pair'] + " : " + str(cval['amount']) + " : " + str(cval['value']))
+
+def add_holded_coin(exchange, pair, amount, buy_price):
+    hold.add(pair, amount, buy_price, exchange)
 
 #######################################
 class idxCmd(PredCmd):
@@ -147,9 +107,14 @@ class idxCmd(PredCmd):
         for pair in self.preset_pairs:
             print_predict_tf_overlap(pair.upper() + self.default_pair)
 
+    def do_h(self, args):
+        '''HOLD,\ncek nilai koin yang sedang di hold.'''
+        print_holded_value()
+
     
 
 #######################################
 if __name__ == '__main__':
-    app = idxCmd()
-    app.cmdloop('IDX Pred\nEnter a command to predict trend movement \n[p/pl/ptf/ptfl/tf/help]:')
+    print_holded_value()
+    #app = idxCmd()
+    #app.cmdloop('IDX Pred\nEnter a command to predict trend movement \n[p/pl/ptf/ptfl/tf/help]:')
