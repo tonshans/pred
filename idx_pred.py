@@ -3,9 +3,9 @@ from pred import Pred, PredCmd, get_klines, Holding
 pred = Pred()
 hold = Holding()
     
-def predict(pair,timeframe='1d'):
+def predict(pair,timeframe='1d',exchange='idx'):
     try:
-        klines = get_klines('idx', pair,timeframe=timeframe)
+        klines = get_klines(exchange, pair,timeframe=timeframe)
         if klines is None:
             return None
         indi = pred.generate_indi(klines).iloc[[-1]]
@@ -14,8 +14,8 @@ def predict(pair,timeframe='1d'):
         print('Predict say SORRY...')
         return None
 
-def print_predict(pair,timeframe='1d',default_pair='USDT'):
-    pred = predict(pair,timeframe=timeframe)
+def print_predict(pair,timeframe='1d',default_pair='USDT',exchange='idx'):
+    pred = predict(pair,timeframe=timeframe,exchange=exchange)
     if pred is None:
         return None
     time_now = datetime.now().strftime("%d-%m %H:%M")
@@ -32,11 +32,11 @@ def print_predict(pair,timeframe='1d',default_pair='USDT'):
         c +=1
     print(pred_str + '\033[0m')
 
-def print_predict_tf_overlap(pair, tfs=['1d', '4h', '30m']):
+def print_predict_tf_overlap(pair, tfs=['1w', '1d', '4h', '30m'],exchange='idx'):
     time_now = datetime.now().strftime("%d-%m %H:%M")
     print('  _' + pair + '_' + time_now + ':')
     for tf in tfs:
-        pred = predict(pair,timeframe=tf)
+        pred = predict(pair,timeframe=tf,exchange=exchange)
         if pred is None:
             return None
         if len(tf)<3:
@@ -65,7 +65,7 @@ def add_holded_coin(exchange, pair, amount, buy_price):
 class idxCmd(PredCmd):
     def __init__(self) -> None:
         self.pred_main_class = pred
-        self.caller_id = 'idx'
+        self.exchange = 'idx'
         self.default_pair = 'IDR'
         
         self.preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'LIT', 'TEL']
@@ -78,7 +78,7 @@ class idxCmd(PredCmd):
         '''
         arg_split = args.split(' ')
         for arg in arg_split:
-            print_predict(arg.upper() + self.default_pair, timeframe=self.timeframe, default_pair=self.default_pair)
+            print_predict(arg.upper() + self.default_pair, timeframe=self.timeframe, default_pair=self.default_pair, exchange=self.exchange)
 
     def do_pl(self, args):
         '''
@@ -87,18 +87,17 @@ class idxCmd(PredCmd):
         list bisa di ubah dengan command setpr
         '''
         for pair in self.preset_pairs:
-            print_predict(pair + self.default_pair, self.timeframe)
+            print_predict(pair + self.default_pair, self.timeframe,exchange=self.exchange)
 
     def do_pltf(self, args):
         '''
-        Predict List per Time Frame\n
+        Predict : List -> TimeFrame \n
         Predict Pair dalam List preset di loop dalam list timeframe\n
         list bisa di ubah dengan command setpr
         '''
-        for tf in self.preset_tfs:
-            print(tf)
-            for pair in self.preset_pairs:
-                print_predict(pair + self.default_pair, tf)
+        for pair in self.preset_pairs:
+            print_predict_tf_overlap(pair.upper() + self.default_pair, tfs = self.preset_tfs, exchange=self.exchange)
+        
 
     def do_ptf(self, args):
         '''
@@ -108,16 +107,18 @@ class idxCmd(PredCmd):
         '''
         arg_split = args.split(' ')
         for arg in arg_split:
-            print_predict_tf_overlap(arg.upper() + self.default_pair,tfs = self.preset_tfs)
+            print_predict_tf_overlap(arg.upper() + self.default_pair, tfs = self.preset_tfs, exchange=self.exchange)
 
     def do_ptfl(self, args):
         '''
-        Predict TimeFrame List
+        Predict : TimeFrame -> List
         Predict multi timeframe overlap, nge-predict 1 pair dalam preset timeframe\n
         menggunakan PAIR dari list preset_pair 
         '''
-        for pair in self.preset_pairs:
-            print_predict_tf_overlap(pair.upper() + self.default_pair)
+        for tf in self.preset_tfs:
+            print(tf)
+            for pair in self.preset_pairs:
+                print_predict(pair + self.default_pair, tf, exchange=self.exchange)
 
     def do_h(self, args):
         '''HOLD,\ncek nilai koin yang sedang di hold.'''

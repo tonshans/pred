@@ -26,23 +26,24 @@ except:
 
 def get_ticker(exchange):
     'return : { __pair__ : __last_price__ }'
+    price = {}
     if exchange.upper() == 'IDX':
         resp = requests.get('https://indodax.com/api/ticker_all')
-        price = {}
         resp_json = resp.json()['tickers'] 
         for i in resp_json:
-            if '_idr' in i:
-                c_price = resp_json[i]
-                pair_name = i.replace("_idr", "idr").upper()
-                price[pair_name] = c_price['last']
-        return price
+            c_price = resp_json[i]
+            pair_name = i.replace("_", "").upper() #supaya standard penyebutannya
+            price[pair_name] = c_price['last']
+        
     elif exchange == 'bin': #binance
         if not connect_to_binance:
             print("Tidak bisa konek ke binance.")
             return None
-        ## code kalo bisa konek ntar di tempat yang bisa konek ke binance
+        for p in bin_client.get_all_tickers():
+            price[p['symbol']] = p['price']
     else:
-        return None  ## exchange lainnya belum di buat.
+        return None  ## exchange lainnya belum disupport.
+    return price
 
 
 def get_klines(exchange, pair,timeframe='1d',candle_to_fetch=61):
@@ -365,18 +366,18 @@ class Pred():
 
 
 class PredCmd(Cmd):
-    caller_id = ''
-    pred_main_class = None ## ini musti di set setiap inheritance
+    pred_main_class = None ## INI MUSTI DI SET SETIAP INHERITANCE..!!!
     timeframe = '1d' ##default timeframe
     default_pair = 'USDT'
+    exchange = 'bin' # or 'idx'
     model = 'default'
     prompt = ""
-    preset_tfs = ['1d', '4h', '30m']  # timeframes
+    preset_tfs = ['1w', '1d', '4h', '30m']  # timeframes
     preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'LIT']
     
 
     def __init__(self) -> None:
-        self.prompt = "\n" + self.caller_id + ':' + self.timeframe+ ':' + self.default_pair +":> "
+        self.prompt = "\n" + self.exchange + ':' + self.timeframe+ ':' + self.default_pair +":> "
         super().__init__()
 
     def do_settf(self, args):
@@ -385,7 +386,7 @@ class PredCmd(Cmd):
             print(self.timeframe)
         else:
             self.timeframe = args
-            self.prompt = "\n" + self.caller_id + ':'  + self.timeframe+ ':' + self.default_pair +":> "
+            self.prompt = "\n" + self.exchange + ':'  + self.timeframe+ ':' + self.default_pair +":> "
 
     def do_setpl(self, args):
         'set preset pair list'
@@ -402,7 +403,15 @@ class PredCmd(Cmd):
             print(self.default_pair)
         else:
             self.default_pair = args.upper()
-            self.prompt = "\n" + self.caller_id + ':'  + self.timeframe+ ':' + self.default_pair +":> "
+            self.prompt = "\n" + self.exchange + ':'  + self.timeframe+ ':' + self.default_pair +":> "
+
+    def do_setex(self, args):
+        'set exchange [ bin | idx ]. \nex: setex idx'
+        if len(args) == 0:
+            print(self.exchange)
+        else:
+            self.exchange = args.lower()
+            self.prompt = "\n" + self.exchange + ':'  + self.timeframe+ ':' + self.default_pair +":> "
 
     def do_model(self, args):
         'set model type'
@@ -491,7 +500,10 @@ class Holding():
                 exchange_list.append(h['exchange'])
                 ticker[h['exchange']] = get_ticker(h['exchange'])
             
-            coin_value = float(h['amount']) * float(ticker[h['exchange']][h['pair']])
+            if ticker[h['exchange']] is not None:
+                coin_value = float(h['amount']) * float(ticker[h['exchange']][h['pair']])
+            else:
+                coin_value = 0
             total_value += coin_value
             pairs_value.append({'doc_id' : h['doc_id'],
                                 'pair': h['pair'],
