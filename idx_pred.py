@@ -115,6 +115,5 @@ class idxCmd(PredCmd):
 
 #######################################
 if __name__ == '__main__':
-    print_holded_value()
-    #app = idxCmd()
-    #app.cmdloop('IDX Pred\nEnter a command to predict trend movement \n[p/pl/ptf/ptfl/tf/help]:')
+    app = idxCmd()
+    app.cmdloop('IDX Pred\nEnter a command to predict trend movement \n[p/pl/ptf/ptfl/tf/help]:')
