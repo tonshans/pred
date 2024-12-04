@@ -371,6 +371,7 @@ class PredCmd(Cmd):
     default_pair = 'USDT'
     model = 'default'
     prompt = ""
+    preset_tfs = ['1d', '4h', '30m']  # timeframes
     preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'LIT']
     
 

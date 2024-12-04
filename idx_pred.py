@@ -67,6 +67,7 @@ class idxCmd(PredCmd):
         self.pred_main_class = pred
         self.caller_id = 'idx'
         self.default_pair = 'IDR'
+        
         self.preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'LIT', 'TEL']
         super().__init__()
 
@@ -88,6 +89,17 @@ class idxCmd(PredCmd):
         for pair in self.preset_pairs:
             print_predict(pair + self.default_pair, self.timeframe)
 
+    def do_pltf(self, args):
+        '''
+        Predict List per Time Frame\n
+        Predict Pair dalam List preset di loop dalam list timeframe\n
+        list bisa di ubah dengan command setpr
+        '''
+        for tf in self.preset_tfs:
+            print(tf)
+            for pair in self.preset_pairs:
+                print_predict(pair + self.default_pair, tf)
+
     def do_ptf(self, args):
         '''
         Predict TimeFrame
@@ -96,7 +108,7 @@ class idxCmd(PredCmd):
         '''
         arg_split = args.split(' ')
         for arg in arg_split:
-            print_predict_tf_overlap(arg.upper() + self.default_pair)
+            print_predict_tf_overlap(arg.upper() + self.default_pair,tfs = self.preset_tfs)
 
     def do_ptfl(self, args):
         '''
