@@ -35,9 +35,9 @@ def get_ticker(exchange):
             pair_name = i.replace("_", "").upper() #supaya standard penyebutannya
             price[pair_name] = c_price['last']
         
-    elif exchange == 'bin': #binance
+    elif exchange.upper() == 'BIN': #binance
         if not connect_to_binance:
-            print("Tidak bisa konek ke binance.")
+            #print("Tidak bisa konek ke binance.")
             return None
         for p in bin_client.get_all_tickers():
             price[p['symbol']] = p['price']
@@ -345,24 +345,24 @@ class Pred():
         p.append(self.jl_model7.predict(indies)[0])
         return p
 
-
-    def pred_plotfile(self, pred,pair):
-        '''
-        prediction to plot
-        hasil di simpan dalam bentuk file pnd biar gampang di kirim sama bot
-        '''
-        prefix_dir = '/dev/shm/'
-        time_now = datetime.now().strftime("%d-%m%y-%H%M")
-        plot_filename = prefix_dir + "/" + pair + "-" + time_now + ".png"
-
-        pred_df = pd.DataFrame(pred, columns=['Prediction'])
-        plt.figure().set_figheight(1.5)
-        plt.title(pair + ' - ' + time_now)
-        plt.xlabel("Next Move")
-        plt.plot(pred_df.index,pred_df['Prediction'],linewidth=3)
-        plt.savefig(plot_filename)
-
-        return plot_filename
+    ## Disable dulu soalnya kebanyakan di pake di terminal juga
+    #def pred_plotfile(self, pred,pair):
+    #    '''
+    #    prediction to plot
+    #    hasil di simpan dalam bentuk file pnd biar gampang di kirim sama bot
+    #    '''
+    #    prefix_dir = '/dev/shm/'
+    #    time_now = datetime.now().strftime("%d-%m%y-%H%M")
+    #    plot_filename = prefix_dir + "/" + pair + "-" + time_now + ".png"
+    #
+    #    pred_df = pd.DataFrame(pred, columns=['Prediction'])
+    #    plt.figure().set_figheight(1.5)
+    #    plt.title(pair + ' - ' + time_now)
+    #    plt.xlabel("Next Move")
+    #    plt.plot(pred_df.index,pred_df['Prediction'],linewidth=3)
+    #    plt.savefig(plot_filename)
+    #
+    #    return plot_filename
 
 
 class PredCmd(Cmd):
@@ -454,22 +454,33 @@ class Holding():
                 self.db = TinyDB(dbfile)
         self.query = Query()
 
-    def add(self, pair, amount, buy_price, exchange):
+    def add_trans_buy(self, pair, amount, buy_price, exchange):
         self.db.insert({
-        'pair': pair.upper(),
-        'amount' : amount,
-        'buy_price' : buy_price,
-        'exchange' : exchange.upper(),
-        })
+            'pair': pair.upper(),
+            'amount' : amount,
+            'buy_price' : buy_price,
+            'sell_price' : 0,
+            'exchange' : exchange.upper(),
+            })
+    
+    def add_trans_sell(self, pair, amount, sell_price, exchange):
+        self.db.insert({
+            'pair': pair.upper(),
+            'amount' : amount,
+            'buy_price' : 0,
+            'sell_price' : sell_price,
+            'exchange' : exchange.upper()
+            })
 
-    def remove(self, doc_id):
+    def remove_trans(self, doc_id):
         try:
-            self.db.remove(doc_id=doc_id)
+            self.db.remove(doc_ids=[int(doc_id)])
             return True
         except:
             return False
 
-    def ls(self, pair=None, exchange=None):
+    def ls_trans(self, pair=None, exchange=None):
+        'list transaksi'
         holding = []
         if pair is None:
             rec = self.db.search(self.query.pair == pair)
@@ -484,6 +495,7 @@ class Holding():
             'pair': h['pair'],
             'amount': h['amount'],
             'buy_price': h['buy_price'],
+            'sell_price': h['sell_price'],
             'exchange' : h['exchange']
             })
         return holding
@@ -491,27 +503,49 @@ class Holding():
     def value_now(self, pair=None, exchange=None ):
         pairs_value = []
         total_value = 0
-        exchange_list = []
         ticker = {}
-        holded = self.ls(pair=pair, exchange=exchange)
+
+        all_trans = self.ls_trans(pair=pair, exchange=exchange)
+        holded = {}
+        for trans in all_trans:
+            dkey = trans['exchange'] + "-" + trans['pair']
+            if dkey not in holded:
+                if trans['buy_price'] is not None:
+                    holded[dkey] = {'pair': trans['pair'], 
+                                    'amount' : trans['amount'], 
+                                    'avg_buy_price' : trans['buy_price'],
+                                    'exchange': trans['exchange']
+                                    }
+            else:
+                if trans['buy_price'] != 0 :
+                    holded[dkey]['amount'] = holded[dkey]['amount'] + trans['amount'] 
+                    holded[dkey]['avg_buy_price'] = ((holded[dkey]['avg_buy_price'] * holded[dkey]['amount']) + (trans['buy_price'] * trans['amount'])) / (holded[dkey]['amount'] + trans['amount']) 
+                elif trans['sell_price'] != 0 :
+                    holded[dkey]['amount'] = holded[dkey]['amount'] - trans['amount']
         
-        for h in holded:
-            if h['exchange'] not in exchange_list:
-                exchange_list.append(h['exchange'])
-                ticker[h['exchange']] = get_ticker(h['exchange'])
+        for v in holded.values():
+            if v['exchange'] not in ticker:
+                ticker[v['exchange']] = get_ticker(v['exchange'])
             
-            if ticker[h['exchange']] is not None:
-                coin_value = float(h['amount']) * float(ticker[h['exchange']][h['pair']])
+            if ticker[v['exchange']] is not None:
+                try: #sapa tau ada pair yg ngasal input
+                    coin_value = float(v['amount']) * float(ticker[v['exchange']][v['pair']])
+                    old_value = (float(v['amount']) * float(v['avg_buy_price']))
+                    percent_change = (coin_value - old_value) / old_value
+                except:
+                    coin_value = 0
+                    percent_change = 0
             else:
                 coin_value = 0
+                percent_change = 0
+
             total_value += coin_value
-            pairs_value.append({'doc_id' : h['doc_id'],
-                                'pair': h['pair'],
-                                'amount' : h['amount'],
-                                'buy_price' : h['buy_price'],
-                                'exchange' : h['exchange'],
-                                'value': coin_value
-                                #,'percent_change' : ntar aja di tambah ini, masih ngantuk
+            pairs_value.append({'pair': v['pair'],
+                                'amount' : v['amount'],
+                                'buy_price' : v['avg_buy_price'],
+                                'exchange' : v['exchange'],
+                                'value': coin_value,
+                                'percent_change' : percent_change
                                 })
         return {'total': total_value, 'detail' : pairs_value}
 

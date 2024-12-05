@@ -52,14 +52,28 @@ def print_predict_tf_overlap(pair, tfs=['1w', '1d', '4h', '30m'],exchange='idx')
             c +=1
         print(pred_str + '\033[0m')
 
-def print_holded_value():
+def print_holded_value(default_pair):
     h = hold.value_now()
-    print('Total : ' + str(h['total']))
+    print('Total : ' + str(h['total']) + ' ' + default_pair)
     for cval in h['detail']:
-        print(cval['exchange'] + ":" + cval['pair'] + " : " + str(cval['amount']) + " : " + str(cval['value']))
+        print(cval['exchange'] + ":" + cval['pair'] + " : " + str(cval['amount']) + " : " + str(cval['value']) + ' ' + default_pair)
 
-def add_holded_coin(exchange, pair, amount, buy_price):
-    hold.add(pair, amount, buy_price, exchange)
+def add_trans(exchange, trans_type, pair, amount, price):
+    if trans_type == 'buy':
+        hold.add_trans_buy(pair, amount, price, exchange)
+    elif trans_type == 'sell':
+        hold.add_trans_sell(pair, amount, price, exchange)
+
+def remove_trans(doc_id):
+    hold.remove_trans(doc_id)
+
+def print_transaction():
+    for t in hold.ls_trans():
+        if t['buy_price'] != 0:
+            print('[' + str(t['doc_id']) + '] ' + t['exchange'] + ' BUY ' + str(t['amount']) + ' ' + t['pair'] + ' @ ' + str(t['buy_price']) )
+        elif t['sell_price'] != 0:
+            print('[' + str(t['doc_id']) + '] ' + t['exchange'] + ' SELL ' + str(t['amount']) + ' ' + t['pair'] + ' @ ' + str(t['sell_price']) )
+
 
 #######################################
 class idxCmd(PredCmd):
@@ -120,13 +134,54 @@ class idxCmd(PredCmd):
             for pair in self.preset_pairs:
                 print_predict(pair + self.default_pair, tf, exchange=self.exchange)
 
-    def do_h(self, args):
-        '''HOLD,\ncek nilai koin yang sedang di hold.'''
-        print_holded_value()
+    def do_hval(self, args):
+        '''HOLD Value,\ncek nilai koin yang sedang di hold.'''
+        print_holded_value(self.default_pair)
 
+    def do_hls(self, args):
+        'Hold List transaction'
+        print_transaction()
+
+    def do_hbuy(self, args):
+        '''Hold buy transaction, 
+        Add item yang di hold\nhadd pair amount buy_price exchange
+        '''
+        arg =  args.split(" ")
+        if len(arg) < 4:
+            print('Add item yang di hold\nhbuy _pair_ _amount_ _buy_price_ _exchange_')
+        else:
+            pair = arg[0].upper()
+            amount = arg[1]
+            price = arg[2]
+            exchange = arg[3].upper()
+            #print("%s %s %s %s " %(exchange, pair, amount, buy_price))
+            add_trans(exchange, 'buy', pair, amount, price)
+
+    def do_hsell(self, args):
+        '''Hold Sell transaction, 
+        Add item yang di hold\nhsell pair amount price exchange
+        '''
+        arg =  args.split(" ")
+        if len(arg) < 4:
+            print('Add item yang di hold\nhadd _pair_ _amount_ _buy_price_ _exchange_')
+        else:
+            pair = arg[0].upper()
+            amount = arg[1]
+            price = arg[2]
+            exchange = arg[3].upper()
+            #print("%s %s %s %s " %(exchange, pair, amount, buy_price))
+            add_trans(exchange, 'buy', pair, amount, price)
     
+    def do_hrm(self, args):
+        '''Hold Remove transaction\ncek doc_id dari command hls\nex. hrm _doc_id_
+        '''
+        if remove_trans(args):
+            print('Transaction record ' + args + ' removed')
+        else:
+            print('Remove Transaction record ' + args + ' FAILED.')
+        
 
 #######################################
 if __name__ == '__main__':
     app = idxCmd()
-    app.cmdloop('IDX Pred\nEnter a command to predict trend movement \n[p/pl/ptf/ptfl/tf/help]:')
+    app.cmdloop('Pred\nEnter a command to predict trend movement \n[p/pl/ptf/ptfl/tf/help]:')
