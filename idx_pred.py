@@ -54,9 +54,9 @@ def print_predict_tf_overlap(pair, tfs=['1w', '1d', '4h', '30m'],exchange='idx')
 
 def print_holded_value(default_pair):
     h = hold.value_now()
-    print('Total : ' + str(h['total']) + ' ' + default_pair)
+    print(f"Total : {h['total']:,} {default_pair}")
     for cval in h['detail']:
-        print(cval['exchange'] + ":" + cval['pair'] + " : " + str(cval['amount']) + " : " + str(cval['value']) + ' ' + default_pair)
+        print(f"{cval['exchange']} : {cval['amount']:,} {cval['pair']} @ {cval['value']:,} {default_pair}")
 
 def add_trans(exchange, trans_type, pair, amount, price):
     if trans_type == 'buy':
