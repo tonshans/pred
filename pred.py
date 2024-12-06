@@ -373,7 +373,7 @@ class PredCmd(Cmd):
     model = 'default'
     prompt = ""
     preset_tfs = ['1w', '1d', '4h', '30m']  # timeframes
-    preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'LIT']
+    preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'SHIB']
     
 
     def __init__(self) -> None:

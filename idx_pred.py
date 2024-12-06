@@ -82,7 +82,7 @@ class idxCmd(PredCmd):
         self.exchange = 'idx'
         self.default_pair = 'IDR'
         
-        self.preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'LIT', 'TEL']
+        self.preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'SHIB', 'TEL']
         super().__init__()
 
     def do_p(self, args):
