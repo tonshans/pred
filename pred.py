@@ -46,8 +46,11 @@ def get_ticker(exchange):
     return price
 
 
-def get_klines(exchange, pair,timeframe='1d',candle_to_fetch=61):
-    if exchange == 'idx':
+def get_klines(exchange, pair,timeframe='1d',candle_to_fetch=61,debug=False):
+    if debug:
+        print(f"get_kines input : {exchange}, {pair}, {timeframe}, {candle_to_fetch}, {debug}")
+
+    if exchange.upper() == 'IDX':
         idx_endpoint = "https://indodax.com/"
 
         try:
@@ -75,6 +78,8 @@ def get_klines(exchange, pair,timeframe='1d',candle_to_fetch=61):
 
             ohlc_endpoint = "tradingview/history_v2?from=%s&symbol=%s&tf=%s&to=%s" %(timestamp_start,pair,tf_idx,timestamp_now)
 
+            if debug:
+                print((idx_endpoint + ohlc_endpoint))
             resp = requests.get(idx_endpoint + ohlc_endpoint)
             for k in resp.json()[:-1]:
                 klines.append({#'Time': k['Time'],
@@ -89,7 +94,7 @@ def get_klines(exchange, pair,timeframe='1d',candle_to_fetch=61):
             return None
     
     ## Binance
-    elif exchange == 'bin': 
+    elif exchange == 'BIN': 
         if not connect_to_binance:
             print("Tidak bisa konek ke binance.")
             return None
@@ -136,6 +141,10 @@ def get_klines(exchange, pair,timeframe='1d',candle_to_fetch=61):
         
         try:
             bk = bin_client.get_historical_klines(pair, interfal, dateparser_range)
+            
+            if debug:
+                print('__get_klines____')
+                print(bk)
 
             klines = []
             ##  timw now dirubah mendekati utc
@@ -329,8 +338,10 @@ class Pred():
             else:    
                 return bv.drop(columns=['Volume'])
         except Exception as e:
-            print('Error di generate_indi')
+            print('[ERROR] Something wrong when generate_indi..!')
             print(e)
+            print('indi rows : ' + str(len(bv)))
+            print(bv.columns)
             return None
 
 
@@ -368,16 +379,17 @@ class Pred():
 class PredCmd(Cmd):
     pred_main_class = None ## INI MUSTI DI SET SETIAP INHERITANCE..!!!
     timeframe = '1d' ##default timeframe
-    default_pair = 'USDT'
-    exchange = 'bin' # or 'idx'
+    default_fiat = 'USDT'
+    exchange = 'BIN' # or 'IDX'
     model = 'default'
     prompt = ""
     preset_tfs = ['1w', '1d', '4h', '30m']  # timeframes
     preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'SHIB']
+    debug = False
     
 
     def __init__(self) -> None:
-        self.prompt = "\n" + self.exchange + ':' + self.timeframe+ ':' + self.default_pair +":> "
+        self.prompt = "\n" + self.exchange + ':' + self.timeframe+ ':' + self.default_fiat +":> "
         super().__init__()
 
     def do_settf(self, args):
@@ -386,7 +398,17 @@ class PredCmd(Cmd):
             print(self.timeframe)
         else:
             self.timeframe = args
-            self.prompt = "\n" + self.exchange + ':'  + self.timeframe+ ':' + self.default_pair +":> "
+            self.prompt = "\n" + self.exchange + ':'  + self.timeframe+ ':' + self.default_fiat +":> "
+
+    def do_settfs(self, args):
+        'Set TimeFrame preset list (tfs)'
+        if len(args) == 0:
+            print(self.preset_tfs)
+        else:
+            self.preset_tfs = []
+            for tf in args.split(" "):
+                self.preset_tfs.append(tf)
+            print(self.preset_tfs)
 
     def do_setpl(self, args):
         'set preset pair list'
@@ -397,21 +419,27 @@ class PredCmd(Cmd):
             for pr in args.split(' '):
                 self.preset_pairs.append(pr.upper())
 
-    def do_setdp(self, args):
-        'set default pair. \nex: setdp USDT'
+    def do_setdf(self, args):
+        'set default fiat (IDR / USDT). \nex: setdp USDT'
         if len(args) == 0:
-            print(self.default_pair)
+            print(self.default_fiat)
         else:
-            self.default_pair = args.upper()
-            self.prompt = "\n" + self.exchange + ':'  + self.timeframe+ ':' + self.default_pair +":> "
+            self.default_fiat = args.upper()
+            if self.default_fiat == "IDR":
+                self.exchange = 'IDX'
+            self.prompt = "\n" + self.exchange + ':'  + self.timeframe+ ':' + self.default_fiat +":> "
 
     def do_setex(self, args):
         'set exchange [ bin | idx ]. \nex: setex idx'
         if len(args) == 0:
             print(self.exchange)
         else:
-            self.exchange = args.lower()
-            self.prompt = "\n" + self.exchange + ':'  + self.timeframe+ ':' + self.default_pair +":> "
+            self.exchange = args.upper()
+            if self.exchange == 'BIN':
+                self.default_fiat = 'USDT'
+            elif self.exchange == 'IDX':
+                self.default_fiat = 'IDR'
+            self.prompt = "\n" + self.exchange + ':'  + self.timeframe+ ':' + self.default_fiat +":> "
 
     def do_model(self, args):
         'set model type'
@@ -427,7 +455,14 @@ class PredCmd(Cmd):
                 print('Available model : ')
                 print(self.pred_main_class.available_model)
 
-    
+    def do_debug(self, args):
+        'toggle ON/OFF Debug mode'
+        if self.debug:
+            self.debug = False
+            print('Debug OFF')
+        else:
+            self.debug = True
+            print('Debug ON')
 
     def do_exit(self, args):
         'Keluar'
@@ -500,7 +535,7 @@ class Holding():
             })
         return holding
 
-    def value_now(self, pair=None, exchange=None ):
+    def value_now(self, default_fiat, pair=None, exchange=None ):
         pairs_value = []
         total_value = 0
         ticker = {}
@@ -529,8 +564,15 @@ class Holding():
             
             if ticker[v['exchange']] is not None:
                 try: #sapa tau ada pair yg ngasal input
-                    coin_value = float(v['amount']) * float(ticker[v['exchange']][v['pair']])
-                    old_value = (float(v['amount']) * float(v['avg_buy_price']))
+                    if default_fiat == 'IDR' and 'USDT' in v['pair']:
+                        coin_value = (float(v['amount']) * float(ticker[v['exchange']][v['pair']])) * self.usd_idr
+                        old_value = (float(v['amount']) * float(v['avg_buy_price'])) * self.usd_idr
+                    elif default_fiat == 'USDT' and 'IDR' in v['pair']:
+                        coin_value = (float(v['amount']) * float(ticker[v['exchange']][v['pair']])) / self.usd_idr
+                        old_value = (float(v['amount']) * float(v['avg_buy_price'])) / self.usd_idr
+                    else:
+                        coin_value = float(v['amount']) * float(ticker[v['exchange']][v['pair']])
+                        old_value = (float(v['amount']) * float(v['avg_buy_price']))
                     percent_change = (coin_value - old_value) / old_value
                 except:
                     coin_value = 0

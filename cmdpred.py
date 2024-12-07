@@ -3,23 +3,45 @@ from pred import Pred, PredCmd, get_klines, Holding
 pred = Pred()
 hold = Holding()
     
-def predict(pair,timeframe='1d',exchange='idx'):
+def predict(pair,timeframe='1d',exchange='IDX',debug=False):
+    if exchange == 'BIN' and 'IDR' in pair:
+        print(f'{pair} Fiat Not supported')
+        return None
+    
     try:
-        klines = get_klines(exchange, pair,timeframe=timeframe)
+        klines = get_klines(exchange, pair,timeframe=timeframe,debug=debug)
+
+        if debug:
+            print(f"predict input : {pair}, {timeframe},{ exchange}, {debug}")
+            print(f"predict klines output : {klines}")
         if klines is None:
             return None
         indi = pred.generate_indi(klines).iloc[[-1]]
         return [indi['TYP_MOV'].values[0]] + pred.predict_this(indi)
-    except:
-        print('Predict say SORRY...')
+    except Exception as e:
+        print('[ERROR] Predict say SORRY...')
+        print(e)
         return None
 
-def print_predict(pair,timeframe='1d',default_pair='USDT',exchange='idx'):
-    pred = predict(pair,timeframe=timeframe,exchange=exchange)
+def print_predict(pair,timeframe='1d', exchange='IDX', debug=False):
+    if exchange == 'BIN' and 'IDR' in pair:
+        print(f'{pair} Fiat Not supported')
+        return None
+    
+    pred = predict(pair,timeframe=timeframe,exchange=exchange,debug=debug)
+    if debug:
+        print(f"print_predict input : {pair}, {timeframe}, {exchange}, {debug}")
+        print(f'print_predict pred output : {pred}')
     if pred is None:
         return None
     time_now = datetime.now().strftime("%d-%m %H:%M")
-    if (len(pair) < 7) :
+    
+    if 'USDT' in pair:
+        pair_len = 8
+    else:
+        pair_len = 7
+
+    if (len(pair) < pair_len) :
         pred_str = '  ' +  pair + '--' + time_now + '-> '
     else:
         pred_str = '  ' +  pair + '-' + time_now + '-> '
@@ -32,11 +54,15 @@ def print_predict(pair,timeframe='1d',default_pair='USDT',exchange='idx'):
         c +=1
     print(pred_str + '\033[0m')
 
-def print_predict_tf_overlap(pair, tfs=['1w', '1d', '4h', '30m'],exchange='idx'):
+def print_predict_tf_overlap(pair, tfs=['1w', '1d', '4h', '30m'],exchange='IDX',debug=False):
+    if exchange == 'BIN' and 'IDR' in pair:
+        print(f'{pair} Fiat Not supported')
+        return None
+    
     time_now = datetime.now().strftime("%d-%m %H:%M")
     print('  _' + pair + '_' + time_now + ':')
     for tf in tfs:
-        pred = predict(pair,timeframe=tf,exchange=exchange)
+        pred = predict(pair,timeframe=tf,exchange=exchange, debug=debug)
         if pred is None:
             return None
         if len(tf)<3:
@@ -52,11 +78,11 @@ def print_predict_tf_overlap(pair, tfs=['1w', '1d', '4h', '30m'],exchange='idx')
             c +=1
         print(pred_str + '\033[0m')
 
-def print_holded_value(default_pair):
-    h = hold.value_now()
-    print(f"Total : {h['total']:,} {default_pair}")
+def print_holded_value(default_fiat):
+    h = hold.value_now(default_fiat)
+    print(f"Total : {round(h['total'],2):,} {default_fiat}")
     for cval in h['detail']:
-        print(f"{cval['exchange']} : {cval['amount']:,} {cval['pair']} @ {cval['value']:,} {default_pair}")
+        print(f"{cval['exchange']} : {cval['amount']} {cval['pair']} @ {round(cval['value'],2):,} {default_fiat}")
 
 def add_trans(exchange, trans_type, pair, amount, price):
     if trans_type == 'buy':
@@ -79,8 +105,8 @@ def print_transaction():
 class idxCmd(PredCmd):
     def __init__(self) -> None:
         self.pred_main_class = pred
-        self.exchange = 'idx'
-        self.default_pair = 'IDR'
+        self.exchange = 'BIN'
+        self.default_fiat = 'USDT'
         
         self.preset_pairs = ['BTC', 'ETH', 'FET', 'FTM', 'HBAR', 'ZIL', 'SHIB', 'TEL']
         super().__init__()
@@ -92,7 +118,7 @@ class idxCmd(PredCmd):
         '''
         arg_split = args.split(' ')
         for arg in arg_split:
-            print_predict(arg.upper() + self.default_pair, timeframe=self.timeframe, default_pair=self.default_pair, exchange=self.exchange)
+            print_predict(arg.upper() + self.default_fiat, timeframe=self.timeframe, exchange=self.exchange, debug=self.debug)
 
     def do_pl(self, args):
         '''
@@ -100,17 +126,24 @@ class idxCmd(PredCmd):
         Predict Pair dalam List preset\n
         list bisa di ubah dengan command setpr
         '''
-        for pair in self.preset_pairs:
-            print_predict(pair + self.default_pair, self.timeframe,exchange=self.exchange)
+        arg = args.split(' ')
+        if len(arg) > 0:
+            pairs = arg
+        else:
+            pairs = self.preset_pairs
+        for pair in pairs:
+            print_predict(pair + self.default_fiat, timeframe=self.timeframe, exchange=self.exchange, debug=self.debug)
 
     def do_pltf(self, args):
         '''
         Predict : List -> TimeFrame \n
         Predict Pair dalam List preset di loop dalam list timeframe\n
-        list bisa di ubah dengan command setpr
+        list bisa di ubah dengan command setpr, atau di set setelah command ini.
+        pltf : akan menggunakan list dari preset
+        pltf BTCUSDT BNBUSDT ETHUSDT : akan menggunakan list dari command argument
         '''
         for pair in self.preset_pairs:
-            print_predict_tf_overlap(pair.upper() + self.default_pair, tfs = self.preset_tfs, exchange=self.exchange)
+            print_predict_tf_overlap(pair.upper() + self.default_fiat, tfs = self.preset_tfs, exchange=self.exchange, debug=self.debug)
         
 
     def do_ptf(self, args):
@@ -121,22 +154,30 @@ class idxCmd(PredCmd):
         '''
         arg_split = args.split(' ')
         for arg in arg_split:
-            print_predict_tf_overlap(arg.upper() + self.default_pair, tfs = self.preset_tfs, exchange=self.exchange)
+            print_predict_tf_overlap(arg.upper() + self.default_fiat, tfs = self.preset_tfs, exchange=self.exchange, debug=self.debug)
 
     def do_ptfl(self, args):
         '''
         Predict : TimeFrame -> List
-        Predict multi timeframe overlap, nge-predict 1 pair dalam preset timeframe\n
-        menggunakan PAIR dari list preset_pair 
+        Predict multi timeframe overlap, jika tanpa argumen menggunakan PAIR dari list preset_pair, 
+        jika dengan argumen maka list dalam argumen akan digunakan sebagai input list timeframe
+        ptfl : tanpa argumen maka akan menggunakan list timeframe preset
+        ptfl 4h 1h 15m  : akan menggunakan timeframe dari list
         '''
-        for tf in self.preset_tfs:
+        arg = args.split(' ')
+        if len(arg) > 0:
+            tfs = arg
+        else:
+            tfs = self.preset_tfs
+
+        for tf in tfs:
             print(tf)
             for pair in self.preset_pairs:
-                print_predict(pair + self.default_pair, tf, exchange=self.exchange)
+                print_predict(pair + self.default_fiat, timeframe=tf, exchange=self.exchange, debug=self.debug)
 
     def do_hval(self, args):
         '''HOLD Value,\ncek nilai koin yang sedang di hold.'''
-        print_holded_value(self.default_pair)
+        print_holded_value(self.default_fiat)
 
     def do_hls(self, args):
         'Hold List transaction'
@@ -180,8 +221,17 @@ class idxCmd(PredCmd):
         else:
             print('Remove Transaction record ' + args + ' FAILED.')
         
+    def do_tel(self, args):
+        '''
+        Special Case
+        untuk cek status tel di idx, supaya gak pindah2 mode exchange cuma buat cek tel aja
+        '''
+        pair = 'TELIDR'
+
+        print_predict_tf_overlap(pair, tfs=['1w', '1d', '4h', '30m'],exchange='idx',debug=self.debug)
+
 
 #######################################
 if __name__ == '__main__':
     app = idxCmd()
-    app.cmdloop('Pred\nEnter a command to predict trend movement \n[p/pl/ptf/ptfl/tf/help]:')
+    app.cmdloop('Pred - a Realistic Statistical Hopium for Holders\ntype help for command list:')
