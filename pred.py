@@ -11,10 +11,16 @@ import pandas_ta as ta
 import joblib
 #import matplotlib.pyplot as plt
 from cmd import Cmd 
-from tinydb import TinyDB, Query
-import tinydb_encrypted_jsonstorage as tae
 import re
 import requests
+from tinydb import TinyDB, Query
+from tinydb.storages import JSONStorage
+from tinydb_serialization import SerializationMiddleware
+from tinydb_serialization.serializers import DateTimeSerializer
+import tinydb_encrypted_jsonstorage as tae
+serialization = SerializationMiddleware(JSONStorage)
+serialization.register_serializer(DateTimeSerializer(), 'TinyDate')
+
 try:
     from binance.client import Client
     bin_client = Client('', '')
@@ -24,20 +30,27 @@ except:
 
 
 
-def get_ticker(exchange):
+def get_ticker(exchange, debug=False):
     'return : { __pair__ : __last_price__ }'
     price = {}
     if exchange.upper() == 'IDX':
-        resp = requests.get('https://indodax.com/api/ticker_all')
-        resp_json = resp.json()['tickers'] 
-        for i in resp_json:
-            c_price = resp_json[i]
-            pair_name = i.replace("_", "").upper() #supaya standard penyebutannya
-            price[pair_name] = c_price['last']
+        try:
+            resp = requests.get('https://indodax.com/api/ticker_all')
+            resp_json = resp.json()['tickers'] 
+            for i in resp_json:
+                c_price = resp_json[i]
+                pair_name = i.replace("_", "").upper() #supaya standard penyebutannya
+                price[pair_name] = c_price['last']
+        except Exception as e:
+            if debug:
+                print('get_ticker : IDX ERROR')
+                print(e)
+            return None
         
     elif exchange.upper() == 'BIN': #binance
         if not connect_to_binance:
-            #print("Tidak bisa konek ke binance.")
+            if debug:
+                print("get_ticker : Tidak bisa konek ke binance.")
             return None
         for p in bin_client.get_all_tickers():
             price[p['symbol']] = p['price']
@@ -46,7 +59,7 @@ def get_ticker(exchange):
     return price
 
 
-def get_klines(exchange, pair,timeframe='1d',candle_to_fetch=61,debug=False):
+def get_klines(exchange, pair, timeframe='1d', candle_to_fetch=61, debug=False):
     if debug:
         print(f"get_kines input : {exchange}, {pair}, {timeframe}, {candle_to_fetch}, {debug}")
 
@@ -143,7 +156,7 @@ def get_klines(exchange, pair,timeframe='1d',candle_to_fetch=61,debug=False):
             bk = bin_client.get_historical_klines(pair, interfal, dateparser_range)
             
             if debug:
-                print('__get_klines____')
+                print('__get_klines_debug___')
                 print(bk)
 
             klines = []
@@ -168,8 +181,19 @@ def get_klines(exchange, pair,timeframe='1d',candle_to_fetch=61,debug=False):
             return None
 
 
+def get_pair_list(exchange, fiat='USDT', debug=False):
+    pairs = []
+    ticker = get_ticker(exchange, debug=debug)
+    if ticker is None:
+        return None
+    for pair in ticker:
+        if pair.endswith(fiat):
+            pairs.append(pair)
+    return pairs
+
 
 class Pred():
+    debug = False
     model = 'default'
     available_model = ['default','novol']
     jl_model1 = None
@@ -338,10 +362,11 @@ class Pred():
             else:    
                 return bv.drop(columns=['Volume'])
         except Exception as e:
-            print('[ERROR] Something wrong when generate_indi..!')
-            print(e)
-            print('indi rows : ' + str(len(bv)))
-            print(bv.columns)
+            if debug:
+                print('[ERROR] Something wrong when generate_indi..!')
+                print(e)
+                print('indi rows : ' + str(len(bv)))
+                print(bv.columns)
             return None
 
 
@@ -538,6 +563,7 @@ class Holding():
     def value_now(self, default_fiat, pair=None, exchange=None ):
         pairs_value = []
         total_value = 0
+        total_old_value = 0
         ticker = {}
 
         all_trans = self.ls_trans(pair=pair, exchange=exchange)
@@ -562,34 +588,48 @@ class Holding():
             if v['exchange'] not in ticker:
                 ticker[v['exchange']] = get_ticker(v['exchange'])
             
+            float_amount = float(v['amount'])
             if ticker[v['exchange']] is not None:
                 try: #sapa tau ada pair yg ngasal input
                     if default_fiat == 'IDR' and 'USDT' in v['pair']:
-                        coin_value = (float(v['amount']) * float(ticker[v['exchange']][v['pair']])) * self.usd_idr
-                        old_value = (float(v['amount']) * float(v['avg_buy_price'])) * self.usd_idr
+                        coin_value = (float_amount * float(ticker[v['exchange']][v['pair']])) * self.usd_idr
+                        old_value = (float_amount * float(v['avg_buy_price'])) * self.usd_idr
                     elif default_fiat == 'USDT' and 'IDR' in v['pair']:
-                        coin_value = (float(v['amount']) * float(ticker[v['exchange']][v['pair']])) / self.usd_idr
-                        old_value = (float(v['amount']) * float(v['avg_buy_price'])) / self.usd_idr
+                        coin_value = (float_amount * float(ticker[v['exchange']][v['pair']])) / self.usd_idr
+                        old_value = (float_amount * float(v['avg_buy_price'])) / self.usd_idr
                     else:
-                        coin_value = float(v['amount']) * float(ticker[v['exchange']][v['pair']])
-                        old_value = (float(v['amount']) * float(v['avg_buy_price']))
-                    percent_change = (coin_value - old_value) / old_value
+                        coin_value = float_amount * float(ticker[v['exchange']][v['pair']])
+                        old_value = (float_amount * float(v['avg_buy_price']))
+                    percent_change = ((coin_value - old_value) / old_value) * 100
+                    value_change = coin_value - old_value
                 except:
                     coin_value = 0
                     percent_change = 0
+                    value_change = 0
             else:
                 coin_value = 0
                 percent_change = 0
+                value_change = 0
+
+            if 'USDT' in v['pair']:
+                coin_name = v['pair'].replace('USDT', '')
+            elif 'IDR' in v['pair']:
+                coin_name = v['pair'].replace('IDR', '')
+            else:
+                coin_name = v['pair']
 
             total_value += coin_value
-            pairs_value.append({'pair': v['pair'],
-                                'amount' : v['amount'],
-                                'buy_price' : v['avg_buy_price'],
+            total_old_value += old_value
+            pairs_value.append({#'pair': v['pair'],
                                 'exchange' : v['exchange'],
-                                'value': coin_value,
-                                'percent_change' : percent_change
+                                'coin' : coin_name,
+                                'amount' : format(int(float_amount),','),
+                                #'buy_price' : v['avg_buy_price'],
+                                'value_'+default_fiat: format(int(coin_value),','),
+                                '%_ch' : round(percent_change, 1),
+                                'val_ch' :  "{:,}".format(int(value_change),',') #'+' if value_change >= 0 else '-' +
                                 })
-        return {'total': total_value, 'detail' : pairs_value}
+        return {'total': total_value, 'total_change': total_value - total_old_value, 'detail' : pairs_value}
 
     def value_history(self, ohlc=False):
         pass
@@ -597,6 +637,59 @@ class Holding():
     def value_predict(self, hold_value_ohlc):
         pass
 
+
+class MarketScan():
+    ## INI MUSTI DI SET SETIAP INHERITANCE..!!!
+    ## kenpa gak inherit aja class Pred? karena supaya dalam console semua setingnya class nya sama
+    pred_main_class = None 
+
+    exchange = "BIN"  
+    default_fiat = "USDT"
+    db = TinyDB('db/mscan.json', storage=serialization)
+    debug = False
+    tfs = ['1w','1d','4h','30m']
+
+    def __init__(self):
+        super().__init__()
+
+    def scan(self,timeframe):
+        'Scan market & hasilnya di simpan untuk analisa lebih lanjut.'
+        pairs = get_pair_list(self.exchange, fiat=self.default_fiat, debug=self.debug)
+        if pairs is None:
+            if self.debug:
+                print('scan : pairs is None')
+            return None
+        
+        for pair in pairs:
+            try:
+                klines = get_klines(self.exchange, pair, timeframe=timeframe, candle_to_fetch=61, debug=self.debug)
+                indies = self.pred_main_class.generate_indi(klines)
+                indi = indies.iloc[[-1]]
+                p = self.pred_main_class.predict_this(indi)
+                self.db.insert({'datetime': datetime.now(), 
+                                'exchange': self.exchange, 
+                                'pair' : pair,
+                                'timeframe' : timeframe,
+                                'p0' : indi['TYP_MOV'].values[0],
+                                'p1' : p[0],
+                                'p2' : p[1],
+                                'p3' : p[2],
+                                'p4' : p[3],
+                                'p5' : p[4],
+                                'p6' : p[5],
+                                'p7' : p[6],
+                                })
+            except:
+                if self.debug:
+                    print(f'[ERROR SCAN] {self.exchange} {pair} {timeframe}')
+                pass
+    
+    def clean_expired_data(self):
+        pass
+
+    def bull_potential(self):
+        'Return list of potential bullish pair'
+        pass
 
 
 if __name__ == '__main__':

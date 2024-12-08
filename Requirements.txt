@@ -7,3 +7,4 @@ python-telegram-bot==21.7
 scikit-learn==1.4.2
 tinydb==4.8.2
 tinydb-encrypted-jsonstorage==0.1.2
+tinydb-serialization==2.2.0

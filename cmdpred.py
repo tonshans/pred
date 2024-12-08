@@ -1,4 +1,5 @@
 from datetime import datetime
+from tabulate import tabulate
 from pred import Pred, PredCmd, get_klines, Holding
 pred = Pred()
 hold = Holding()
@@ -80,9 +81,12 @@ def print_predict_tf_overlap(pair, tfs=['1w', '1d', '4h', '30m'],exchange='IDX',
 
 def print_holded_value(default_fiat):
     h = hold.value_now(default_fiat)
-    print(f"Total : {round(h['total'],2):,} {default_fiat}")
-    for cval in h['detail']:
-        print(f"{cval['exchange']} : {cval['amount']} {cval['pair']} @ {round(cval['value'],2):,} {default_fiat}")
+    header = h['detail'][0].keys()
+    rows = [x.values() for x in h['detail']]
+    print(f"\nTotal : {round(h['total'],2):,} {default_fiat}  ({round(h['total_change'],2):,} change)\n")
+    print(tabulate(rows, header))
+    #for cval in h['detail']:
+    #    print(f"{cval['exchange']} : {cval['amount']} {cval['coin_name']} \t@ {round(cval['value'],2):,} {default_fiat} \t({cval['value_change']} {round(cval['percent_change'],2)}%)")
 
 def add_trans(exchange, trans_type, pair, amount, price):
     if trans_type == 'buy':
@@ -103,7 +107,7 @@ def print_transaction():
 
 #######################################
 class idxCmd(PredCmd):
-    def __init__(self) -> None:
+    def __init__(self):
         self.pred_main_class = pred
         self.exchange = 'BIN'
         self.default_fiat = 'USDT'
@@ -127,7 +131,7 @@ class idxCmd(PredCmd):
         list bisa di ubah dengan command setpr
         '''
         arg = args.split(' ')
-        if len(arg) > 0:
+        if len(arg) > 0  and arg[0] != '' :
             pairs = arg
         else:
             pairs = self.preset_pairs
@@ -165,7 +169,7 @@ class idxCmd(PredCmd):
         ptfl 4h 1h 15m  : akan menggunakan timeframe dari list
         '''
         arg = args.split(' ')
-        if len(arg) > 0:
+        if len(arg) > 0 and arg[0] != '' :
             tfs = arg
         else:
             tfs = self.preset_tfs
