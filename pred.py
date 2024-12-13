@@ -232,7 +232,7 @@ class Pred():
             self.jl_model7 = joblib.load("models/"+self.model+"/model7.jl")
 
 
-    def generate_indi(self, klines):
+    def generate_indi(self, klines, debug=False):
         ''' 
         target: bv.loc[i,'TYP_MOV'] = 1 if bv.loc[i,'TYP'] > bv.loc[i,'TYP_MA8'] else -1
 
