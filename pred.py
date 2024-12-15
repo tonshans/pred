@@ -95,7 +95,8 @@ def get_klines(exchange, pair, timeframe='1d', candle_to_fetch=61, debug=False):
                 print((idx_endpoint + ohlc_endpoint))
             resp = requests.get(idx_endpoint + ohlc_endpoint)
             for k in resp.json()[:-1]:
-                klines.append({#'Time': k['Time'],
+                ctime = datetime.fromtimestamp(k['Time']) + timedelta(minutes=tf_in_minute) #close time
+                klines.append({'Ctime': ctime,
                         'Open': float(k['Open']),
                         'High': float(k['High']),
                         'Low': float(k['Low']),
@@ -103,7 +104,10 @@ def get_klines(exchange, pair, timeframe='1d', candle_to_fetch=61, debug=False):
                         'Volume': float(k['Volume']),
                         })
             return pd.DataFrame.from_dict(klines)
-        except:
+        except Exception as e:
+            if debug:
+                print(f'[ERROR] when get indodax {pair} klines...')
+                print(e)
             return None
     
     ## Binance
@@ -165,7 +169,7 @@ def get_klines(exchange, pair, timeframe='1d', candle_to_fetch=61, debug=False):
             if len(bk) > 0 :
                 for k in bk:
                     if time_now > datetime.fromtimestamp(k[6]/1000):
-                        klines.append({#'Open_time': k[0],
+                        klines.append({'Ctime': datetime.fromtimestamp(k[6]/1000) + timedelta(hours=8, minutes=1),
                                     'Open': float(k[1]),
                                     'High': float(k[2]),
                                     'Low': float(k[3]),
@@ -177,7 +181,10 @@ def get_klines(exchange, pair, timeframe='1d', candle_to_fetch=61, debug=False):
             ## ntar di crosscheck, apakah perlu ordering di balik, butuhnya sorting dari oldest ke newest
             #klines_df.iloc[::-1].reset_index(drop=True)  ## gak perlu di balik sortiran nya, sudah pass oldes ke newest datanya
             return klines_df
-        except:
+        except Exception as e:
+            if debug:
+                print(f'[ERROR] when get binance {pair} klines...')
+                print(e)
             return None
 
 
@@ -238,8 +245,8 @@ class Pred():
 
         '''
         try:
-            bv = klines 
             if self.model == 'default':
+                bv = klines.drop(columns=['Ctime'])
                 bv['VOL_MA8'] = ta.sma(bv['Volume'], length=8)
                 bv['VOL_MA13'] = ta.sma(bv['Volume'], length=13)
                 bv['VOL_MA21'] = ta.sma(bv['Volume'], length=21)
@@ -254,7 +261,8 @@ class Pred():
                 bv['VOL_MACD'] = _vol_macd['MACD_12_26_9']
                 bv['VOL_MACDH'] = _vol_macd['MACDh_12_26_9']
                 bv['VOL_MACDS'] = _vol_macd['MACDs_12_26_9']
-            
+            else:
+                bv = klines.drop(columns=['Volume','Ctime'])
 
             bv['TYP'] = (bv['High']+bv['Low']+bv['Close'])/3
             bv['TYP_MA8'] = ta.sma(bv['TYP'], length=8)
@@ -302,7 +310,8 @@ class Pred():
                     bv.loc[i,"H_CH"] = (bv.loc[i,'High']-bv.loc[i-1,'High'])/bv.loc[i,'High']
                     bv.loc[i,"L_CH"] = (bv.loc[i,'Low']-bv.loc[i-1,'Low'])/bv.loc[i,'Low']
                     bv.loc[i,"C_CH"] = (bv.loc[i,'Close']-bv.loc[i-1,'Close'])/bv.loc[i,'Close']
-                    bv.loc[i,"VOL_CH"] = (bv.loc[i,'Volume']-bv.loc[i-1,'Volume'])/bv.loc[i,'Volume']
+                    if self.model == 'default':
+                        bv.loc[i,"VOL_CH"] = (bv.loc[i,'Volume']-bv.loc[i-1,'Volume'])/bv.loc[i,'Volume']
                     bv.loc[i,"TYP_CH"] = (bv.loc[i,'TYP']-bv.loc[i-1,'TYP'])/bv.loc[i,'TYP']
 
                     bv.loc[i,"HA_O_CH"] = (bv.loc[i,'HA_O']-bv.loc[i-1,'HA_O'])/bv.loc[i,'HA_O']
@@ -356,17 +365,16 @@ class Pred():
             bv['HA_MOV_RSI_SK'] = _ha_mov_rsi_stoch['STOCHRSIk_14_14_3_3']
             bv['HA_MOV_RSI_SD'] = _ha_mov_rsi_stoch['STOCHRSId_14_14_3_3']
 
-            #return bv[np.isfinite(bv).all(1)] #exclude yang mengandung infinate value
-            if self.model == 'default':
-                return bv
-            else:    
-                return bv.drop(columns=['Volume'])
-        except Exception as e:
             if debug:
-                print('[ERROR] Something wrong when generate_indi..!')
-                print(e)
                 print('indi rows : ' + str(len(bv)))
                 print(bv.columns)
+
+            #return bv[np.isfinite(bv).all(1)] #exclude yang mengandung infinate value
+            return bv
+            
+        except Exception as e:
+            print('[ERROR] Something wrong when generate_indi..!')
+            print(e)
             return None
 
 

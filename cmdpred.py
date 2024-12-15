@@ -17,8 +17,12 @@ def predict(pair,timeframe='1d',exchange='IDX',debug=False):
             print(f"predict klines output : {klines}")
         if klines is None:
             return None
-        indi = pred.generate_indi(klines).iloc[[-1]]
-        return [indi['TYP_MOV'].values[0]] + pred.predict_this(indi)
+        ctime = klines.iloc[-1]['Ctime']
+        indi = pred.generate_indi(klines,debug=debug).iloc[[-1]]
+        return {
+            'ctime' : ctime,
+            'pred': [indi['TYP_MOV'].values[0]] + pred.predict_this(indi)
+        }
     except Exception as e:
         print('[ERROR] Predict say SORRY...')
         print(e)
@@ -35,7 +39,8 @@ def print_predict(pair,timeframe='1d', exchange='IDX', debug=False):
         print(f'print_predict pred output : {pred}')
     if pred is None:
         return None
-    time_now = datetime.now().strftime("%d-%m %H:%M")
+    #time_now = datetime.now().strftime("%d-%m %H:%M")
+    time_now = pred['ctime'].strftime("%d-%m %H:%M")
     
     if 'USDT' in pair:
         pair_len = 8
@@ -47,7 +52,7 @@ def print_predict(pair,timeframe='1d', exchange='IDX', debug=False):
     else:
         pred_str = '  ' +  pair + '-' + time_now + '-> '
     c = 0
-    for p in pred:
+    for p in pred['pred']:
         if p == 1:
             pred_str += '\033[1;32;40m [' + str(c)+']'
         else:
@@ -60,18 +65,18 @@ def print_predict_tf_overlap(pair, tfs=['1w', '1d', '4h', '30m'],exchange='IDX',
         print(f'{pair} Fiat Not supported')
         return None
     
-    time_now = datetime.now().strftime("%d-%m %H:%M")
-    print('  _' + pair + '_' + time_now + ':')
+    print('  _' + pair + '_' )
     for tf in tfs:
         pred = predict(pair,timeframe=tf,exchange=exchange, debug=debug)
         if pred is None:
             return None
+        ctime = pred['ctime'].strftime("%d-%m %H:%M")
         if len(tf)<3:
-            pred_str = '  ' + tf + ' :-> '
+            pred_str = '  ' + tf + ' :'+ ctime +'-> '
         else:
-            pred_str = '  ' + tf + ':-> '
+            pred_str = '  ' + tf + ':'+ ctime +'-> '
         c = 0
-        for p in pred:
+        for p in pred['pred']:
             if p == 1:
                 pred_str += '\033[1;32;40m [' + str(c)+']'
             else:
@@ -85,8 +90,7 @@ def print_holded_value(default_fiat):
     rows = [x.values() for x in h['detail']]
     print(f"\nTotal : {round(h['total'],2):,} {default_fiat}  ({round(h['total_change'],2):,} change)\n")
     print(tabulate(rows, header))
-    #for cval in h['detail']:
-    #    print(f"{cval['exchange']} : {cval['amount']} {cval['coin_name']} \t@ {round(cval['value'],2):,} {default_fiat} \t({cval['value_change']} {round(cval['percent_change'],2)}%)")
+    
 
 def add_trans(exchange, trans_type, pair, amount, price):
     if trans_type == 'buy':
@@ -94,8 +98,10 @@ def add_trans(exchange, trans_type, pair, amount, price):
     elif trans_type == 'sell':
         hold.add_trans_sell(pair, amount, price, exchange)
 
+
 def remove_trans(doc_id):
     hold.remove_trans(doc_id)
+
 
 def print_transaction():
     for t in hold.ls_trans():
